@@ -1,0 +1,338 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  drafts            Draft[]
+  campaigns         Campaign[]
+  posts             Post[]
+  approvals         ContentApproval[]
+  influencers       Influencer[]
+  outreachEmails    OutreachEmail[]
+  outreachTemplates OutreachTemplate[]
+  socialConnections SocialConnection[]
+
+  @@map("users")
+}
+
+model Character {
+  id          String @id @default(cuid())
+  name        String @unique
+  slug        String @unique
+  description String
+  personality String
+  targetDemo  String
+  voiceStyle  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  drafts Draft[]
+  posts  Post[]
+
+  @@map("characters")
+}
+
+model Draft {
+  id          String      @id @default(cuid())
+  title       String
+  content     String
+  platform    Platform
+  contentType ContentType
+  status      DraftStatus @default(DRAFT)
+  scheduledAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id])
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+
+  approvals ContentApproval[]
+  posts     Post[]
+
+  @@map("drafts")
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  title       String
+  content     String
+  platform    Platform
+  contentType ContentType
+  status      PostStatus @default(SCHEDULED)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id])
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  draftId     String?
+  draft       Draft?    @relation(fields: [draftId], references: [id])
+
+  metrics PostMetric[]
+
+  @@map("posts")
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      CampaignStatus @default(PLANNING)
+  budget      Decimal?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  drafts         Draft[]
+  posts          Post[]
+  events         CalendarEvent[]
+  outreachEmails OutreachEmail[]
+
+  @@map("campaigns")
+}
+
+model Influencer {
+  id               String    @id @default(cuid())
+  name             String
+  email            String
+  platform         String
+  handle           String
+  followerCount    Int       @default(0)
+  engagementRate   Float     @default(0)
+  niche            String?
+  location         String?
+  contactInfo      Json?
+  tags             String[]
+  notes            String?
+  rating           Int?      @default(0)
+  isBlacklisted    Boolean   @default(false)
+  lastContactDate  DateTime?
+  userId           String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outreachEmails OutreachEmail[]
+
+  @@unique([email, userId])
+  @@index([userId])
+  @@index([platform])
+  @@index([followerCount])
+  @@map("influencers")
+}
+
+model OutreachEmail {
+  id           String         @id @default(cuid())
+  influencerId String
+  campaignId   String?
+  templateId   String?
+  subject      String
+  message      String
+  status       OutreachStatus @default(PENDING)
+  sentAt       DateTime?
+  openedAt     DateTime?
+  repliedAt    DateTime?
+  scheduledFor DateTime?
+  metadata     Json?
+  userId       String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  influencer Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  campaign   Campaign?  @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([influencerId])
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("outreach_emails")
+}
+
+model OutreachTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  message   String
+  variables String[]
+  isDefault Boolean  @default(false)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("outreach_templates")
+}
+
+model SocialConnection {
+  id               String    @id @default(cuid())
+  userId           String
+  platform         String
+  accessToken      String
+  refreshToken     String?
+  tokenExpiry      DateTime?
+  platformUserId   String
+  platformUsername String
+  isActive         Boolean   @default(true)
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
+  @@map("social_connections")
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  eventType   EventType
+  startDate   DateTime
+  endDate     DateTime?
+  isRecurring Boolean   @default(false)
+  recurringPattern String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@map("calendar_events")
+}
+
+model PostMetric {
+  id           String   @id @default(cuid())
+  views        Int      @default(0)
+  likes        Int      @default(0)
+  shares       Int      @default(0)
+  comments     Int      @default(0)
+  clicks       Int      @default(0)
+  conversions  Int      @default(0)
+  reach        Int      @default(0)
+  impressions  Int      @default(0)
+  recordedAt   DateTime @default(now())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_metrics")
+}
+
+model ContentApproval {
+  id        String         @id @default(cuid())
+  status    ApprovalStatus @default(PENDING)
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  draftId    String
+  draft      Draft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User   @relation(fields: [reviewerId], references: [id])
+
+  @@map("content_approvals")
+}
+
+// Enums
+enum Role {
+  USER
+  ADMIN
+  MANAGER
+}
+
+enum Platform {
+  TIKTOK
+  INSTAGRAM
+  YOUTUBE
+  FACEBOOK
+}
+
+enum ContentType {
+  VIDEO
+  IMAGE
+  TEXT
+  STORY
+  REEL
+  SHORT
+}
+
+enum DraftStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+enum PostStatus {
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  PLANNING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum OutreachStatus {
+  PENDING
+  SENT
+  OPENED
+  REPLIED
+  INTERESTED
+  DECLINED
+  COLLABORATED
+}
+
+enum EventType {
+  CONTENT_CREATION
+  PUBLISHING
+  CAMPAIGN_LAUNCH
+  REVIEW
+  SEASONAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_NEEDED
+}
